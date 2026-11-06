@@ -1,0 +1,5 @@
+#!/bin/sh
+# Put first on PATH by imagegen.sh: the same `codex exec` call, with a low reasoning effort.
+[ "${1-}" = exec ] || { echo "codex shim: expected 'codex exec ...', got '${1-}'" >&2; exit 2; }
+shift
+exec "$PMV_REAL_CODEX" exec -c 'model_reasoning_effort="low"' "$@"

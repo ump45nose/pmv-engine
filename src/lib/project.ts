@@ -12,6 +12,10 @@ export function projectPaths(dir: string) {
     project: path.join(root, "project.json"),
     songDir: path.join(root, "song"),
     song: path.join(root, "song", "song.json"),
+    shots: path.join(root, "shots.json"),
+    bible: path.join(root, "bible", "characters.json"),
+    art: path.join(root, "art"),
+    jobs: path.join(root, "jobs.jsonl"),
     out: path.join(root, "out"),
     qa: path.join(root, "out", "qa"),
   };

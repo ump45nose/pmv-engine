@@ -1,10 +1,11 @@
 import { analyze } from "./commands/analyze";
+import { art } from "./commands/art";
 import { init } from "./commands/init";
 import { qa } from "./commands/qa";
 import { render } from "./commands/render";
 import type { Command } from "./lib/cli";
 
-const commands: Record<string, Command> = { init, analyze, render, qa };
+const commands: Record<string, Command> = { init, analyze, art, render, qa };
 
 const [name, ...args] = process.argv.slice(2);
 try {

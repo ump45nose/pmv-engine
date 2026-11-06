@@ -1,5 +1,6 @@
 import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
+import { deflateSync } from "node:zlib";
 
 export const REPO = path.resolve(import.meta.dir, "..");
 
@@ -21,6 +22,38 @@ export async function runCli(...args: string[]) {
     throw new Error(`stdout is not one JSON object:\n${stdout}\nstderr:\n${stderr}`);
   }
   return { code, json, stderr };
+}
+
+const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+
+function pngChunk(type: string, data: Uint8Array): Uint8Array {
+  const body = new Uint8Array([...new TextEncoder().encode(type), ...data]);
+  let crc = 0xffffffff;
+  for (const b of body) crc = CRC_TABLE[(crc ^ b) & 0xff]! ^ (crc >>> 8);
+  const out = new Uint8Array(12 + data.length);
+  const view = new DataView(out.buffer);
+  view.setUint32(0, data.length);
+  out.set(body, 4);
+  view.setUint32(8 + data.length, (crc ^ 0xffffffff) >>> 0);
+  return out;
+}
+
+/** A flat gray 8-bit PNG. */
+export function grayPng(width: number, height: number, level: number): Uint8Array {
+  const header = new Uint8Array(13);
+  const view = new DataView(header.buffer);
+  view.setUint32(0, width);
+  view.setUint32(4, height);
+  header.set([8, 0, 0, 0, 0], 8); // bit depth 8, grayscale
+  const rows = new Uint8Array((width + 1) * height);
+  for (let y = 0; y < height; y++) rows.fill(level, y * (width + 1) + 1, (y + 1) * (width + 1));
+  const signature = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const chunks = [pngChunk("IHDR", header), pngChunk("IDAT", deflateSync(rows)), pngChunk("IEND", new Uint8Array())];
+  return new Uint8Array([...signature, ...chunks.flatMap((c) => [...c])]);
 }
 
 /** Write the synthetic 165 BPM test track; returns its ground truth. */
