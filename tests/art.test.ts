@@ -368,8 +368,8 @@ describe("artcheck", () => {
     expect(await Bun.file(path.join(dir, "art", "S2", "flip.mp4")).exists()).toBe(true);
   }, 30_000);
 
-  test("--paste takes the pose only where it changed and holds the background still", async () => {
-    const dir = await project("artcheck-paste");
+  test("--ab compares the raw drawings with the final frames art pasted from them", async () => {
+    const dir = await project("artcheck-ab");
     await Bun.write(
       path.join(dir, "project.json"),
       JSON.stringify({ version: 1, title: "t", fps: 24, width: 1920, height: 1080, audio: null, sections: [] }),
@@ -381,23 +381,23 @@ describe("artcheck", () => {
         const h = Math.imul(x * 374761393 + y * 668265263 + seed * 2246822519, 1274126177);
         return 110 + Math.round(40 * Math.sin(x / 80) * Math.cos(y / 64)) + ((h ^ (h >>> 15)) >>> 0) % 25 - 12;
       });
-    await mkdir(path.join(dir, "art", "S2"), { recursive: true });
-    await Bun.write(path.join(dir, "art", "S2", "a.png"), drawing(1, 300, 200));
-    await Bun.write(path.join(dir, "art", "S2", "b.png"), drawing(2, 760, 260));
+    const { backend } = fakeBackend({}, (label) => (label === "S2/a" ? drawing(1, 300, 200) : drawing(2, 760, 260)));
+    await run(dir, backend, { only: "S2" });
 
-    const { code, json } = await runCli("artcheck", "--project", dir, "--bpm", "165", "--only", "S2", "--paste");
+    const { code, json } = await runCli("artcheck", "--project", dir, "--bpm", "165", "--only", "S2", "--ab");
     expect(code).toBe(0);
-    expect(Object.keys(json.outputs)).toEqual(["S2/sheet", "S2/flip", "S2/check", "S2/ab", "S2/sheet-paste", "S2/paste/b", "S2/paste/b.mask"]);
+    expect(Object.keys(json.outputs)).toEqual(["S2/sheet", "S2/flip", "S2/check", "S2/ab", "S2/sheet-paste"]);
     const { poses, background } = json.summary.paste.S2;
     // Both places of the block, grown and feathered, and nothing of the redrawn noise.
     expect(poses.b.area).toBeGreaterThan(0.08);
     expect(poses.b.area).toBeLessThan(0.25);
     expect(background.paste.max).toBeLessThan(0.5);
     expect(background.original.mean).toBeGreaterThan(1);
-    expect(await pngSize(json.outputs["S2/paste/b"])).toEqual({ width: 1280, height: 720 });
+    // The drift numbers compare final frames, whose corners are the base frame's up to the rounding of its gray PNG to RGB.
+    expect(json.summary.drift.S2.b.corners).toBeLessThan(0.1);
     expect(await Bun.file(json.outputs["S2/ab"]).exists()).toBe(true);
     const check = await Bun.file(json.outputs["S2/check"]).json();
-    expect(check.paste.params).toMatchObject({ threshold: 22, grow: 40, feather: 24, half: [960, 540] });
+    expect(check.paste.params).toEqual({ half: [960, 540] });
   }, 120_000);
 });
 

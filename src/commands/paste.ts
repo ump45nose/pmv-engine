@@ -36,5 +36,5 @@ export const paste: Command = async (args) => {
     }
     params = result.params;
   }
-  return { outputs, summary: { pasted: poses.length, poses, params }, next: pmv("artcheck", "--project", dir, "--bpm", "<bpm>") };
+  return { outputs, summary: { pasted: poses.length, poses, params }, next: pmv("artcheck", "--project", dir, "--bpm", "<bpm>", "--ab") };
 };

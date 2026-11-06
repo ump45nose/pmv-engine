@@ -2,7 +2,8 @@ import numpy as np
 import pytest
 
 from pmv_tools.artcheck import check, flip_poses, shift
-from pmv_tools.media import probe, read_gray, read_rgb, write_png
+from pmv_tools.media import probe, read_gray, write_png
+from pmv_tools.paste import paste
 from tests.synth import drawing
 
 PATTERN = ["a", "b", "a", "c"]
@@ -65,46 +66,37 @@ def test_sheet_puts_the_poses_side_by_side(shot):
 
 
 @pytest.fixture(scope="module")
-def pasted(tmp_path_factory):
-    """Every drawing redraws the background texture; the character block moves right in b and down in c."""
-    folder = tmp_path_factory.mktemp("paste")
+def compared(tmp_path_factory):
+    """Every raw drawing redraws the background texture; the character block moves right in b and down in c."""
+    folder = tmp_path_factory.mktemp("ab")
     for seed, (pose, at) in enumerate({"a": (300, 200), "b": (760, 260), "c": (300, 460)}.items()):
-        write_png(folder / f"{pose}.png", drawing(seed, at))
-    return folder, check(folder, ["a", "b", "c"], PATTERN, 165, 24, 4, paste=True)["paste"]
+        write_png(folder / ("a.png" if pose == "a" else f"{pose}.raw.png"), drawing(seed, at))
+    paste(folder, "a", ["b", "c"])
+    return folder, check(folder, ["a", "b", "c"], PATTERN, 165, 24, 4, ab=True)["paste"]
 
 
-def test_paste_writes_the_pasted_poses_and_their_masks(pasted):
-    folder, paste = pasted
+def test_ab_measures_the_masks_and_puts_them_under_the_final_frames(compared):
+    folder, report = compared
     for pose in "bc":
-        assert paste["poses"][pose]["image"] == str(folder / "paste" / f"{pose}.png")
-        assert (probe(folder / "paste" / f"{pose}.png")["width"], probe(folder / "paste" / f"{pose}.mask.png")["height"]) == (1280, 720)
-        assert 0 < paste["poses"][pose]["area"] < 0.3
-        assert paste["poses"][pose]["seam"] > 0
+        assert 0 < report["poses"][pose]["area"] < 0.3
+        assert report["poses"][pose]["seam"] > 0
     info = probe(folder / "sheet-paste.jpg")
     assert (info["width"], info["height"]) == (3 * 1280, 2 * 720)
+    assert report["params"] == {"half": [960, 540]}
 
 
-def test_ab_shows_the_original_left_and_the_pasted_right_with_a_still_background(pasted):
-    folder, paste = pasted
+def test_ab_shows_the_raw_drawings_left_and_the_final_frames_right_with_a_still_background(compared):
+    folder, report = compared
     info = probe(folder / "ab.mp4")
     assert (info["width"], info["height"], info["fps"]) == (1920, 540, 24)
     frames = read_gray(folder / "ab.mp4", 320, 90).astype(int)
     assert len(frames) == 96
-    original = {p: read_gray(folder / f"{p}.png", 160, 90)[0].astype(int) for p in "abc"}
-    pasted_ = {"a": original["a"]} | {p: read_gray(folder / "paste" / f"{p}.png", 160, 90)[0].astype(int) for p in "bc"}
+    gray = lambda name: read_gray(folder / name, 160, 90)[0].astype(int)  # noqa: E731
+    raw = {"a": gray("a.png")} | {p: gray(f"{p}.raw.png") for p in "bc"}
+    final = {p: gray(f"{p}.png") for p in "abc"}
     nearest = lambda side, f: min(side, key=lambda p: np.abs(side[p] - f).mean())  # noqa: E731
     expected = flip_poses(PATTERN, 165, 24, 4)
-    assert [nearest(original, f[:, :160]) for f in frames] == expected
-    assert [nearest(pasted_, f[:, 160:]) for f in frames] == expected
-    assert paste["background"]["paste"]["max"] < 0.5 < 2 < paste["background"]["original"]["mean"]
-    assert 0.3 < paste["background"]["area"] < 1
-
-
-def test_paste_composites_at_full_size(pasted):
-    folder, _ = pasted
-    base = read_rgb(folder / "a.png", 1280, 720)[0]
-    b = read_rgb(folder / "b.png", 1280, 720)[0]
-    out = read_rgb(folder / "paste" / "b.png", 1280, 720)[0]
-    assert np.array_equal(out[:100, :100], base[:100, :100])  # far from both places of the block
-    assert np.array_equal(out[200:360, 300:420], b[200:360, 300:420])  # where the block was: the pose's background
-    assert np.array_equal(out[260:420, 760:880], b[260:420, 760:880])  # where it is now
+    assert [nearest(raw, f[:, :160]) for f in frames] == expected
+    assert [nearest(final, f[:, 160:]) for f in frames] == expected
+    assert report["background"]["paste"]["max"] < 0.5 < 2 < report["background"]["original"]["mean"]
+    assert 0.3 < report["background"]["area"] < 1

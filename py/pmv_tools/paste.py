@@ -66,14 +66,6 @@ def composite(base, pose, mask):
     return np.round(base * (1 - m) + pose * m).astype(np.uint8)
 
 
-def review(image, mask):
-    """`image` dimmed to 35% outside the mask, with a 3 px red line along the mask's outer edge, for checking it by eye."""
-    inside = mask > 0
-    out = image * (0.35 + 0.65 * mask[..., None])
-    out[inside & (distance_to(~inside) <= 3)] = (255, 0, 0)
-    return np.round(out).astype(np.uint8)
-
-
 def write_mask(path, mask):
     write_png16(path, np.round(mask * 65535).astype(np.uint16))
 
