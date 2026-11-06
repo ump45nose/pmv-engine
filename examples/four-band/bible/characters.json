@@ -1,7 +1,7 @@
 {
   "version": 1,
   "artDirection": "High-end Japanese hand-drawn theatrical anime film still: clean line art with confident, tapering strokes; two-tone cel shading with crisp shadow shapes; hand-painted gouache backgrounds; volumetric light; subtle film grain.",
-  "negative": "No text, letters, captions, subtitles, watermark or signature; no UI, frames, borders or panel layout; no character sheet or multiple views; no extra characters or background people; no extra or missing fingers, fused hands or extra limbs; no 3D render, photorealism or chibi proportions.",
+  "negative": "No text, letters, captions, subtitles, watermark or signature; no UI, frames, borders or panel layout; no character sheet or multiple views; no extra characters or background people; no extra or missing fingers, fused hands or extra limbs; no added effects such as sparks, splashes, impact flashes, speed lines or motion trails; no 3D render, photorealism or chibi proportions.",
   "characters": [
     {
       "id": "gpt",
