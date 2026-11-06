@@ -1,7 +1,8 @@
+import { analyze } from "./commands/analyze";
 import { init } from "./commands/init";
 import type { Command } from "./lib/cli";
 
-const commands: Record<string, Command> = { init };
+const commands: Record<string, Command> = { init, analyze };
 
 const [name, ...args] = process.argv.slice(2);
 try {
