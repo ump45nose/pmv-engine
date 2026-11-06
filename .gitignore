@@ -1,0 +1,14 @@
+.DS_Store
+node_modules/
+.venv/
+__pycache__/
+.cache/
+out/
+*.wav
+*.mp3
+*.flac
+*.m4a
+*.aac
+*.ogg
+*.mp4
+*.mov
