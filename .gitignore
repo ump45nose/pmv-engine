@@ -13,3 +13,8 @@ out/
 *.ogg
 *.mp4
 *.mov
+examples/*/bible/refs/
+examples/*/art/
+examples/*/song/
+examples/*/out/
+examples/*/jobs.jsonl

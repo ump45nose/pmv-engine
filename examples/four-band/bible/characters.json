@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "artDirection": "High-end Japanese hand-drawn theatrical anime film still: clean line art with confident, tapering strokes; two-tone cel shading with crisp shadow shapes; hand-painted gouache backgrounds; volumetric light; subtle film grain.",
+  "negative": "No text, letters, captions, subtitles, watermark or signature; no UI, frames, borders or panel layout; no character sheet or multiple views; no extra characters or background people; no extra or missing fingers, fused hands or extra limbs; no 3D render, photorealism or chibi proportions.",
+  "characters": [
+    {
+      "id": "gpt",
+      "name": "GPT",
+      "refs": ["bible/refs/gpt-design-sheet.png", "bible/refs/v5-gpt.png", "bible/refs/gpt-stage-hero.png"],
+      "lock": "White dragon girl. Very long, voluminous wavy hair, white with a soft lavender tint, with a small ahoge; violet eyes; pointed elf ears. A pair of ridged white dragon horns curving up and back from the top of her head, each with a thin gold crescent along it; a white OpenAI-knot rosette with a gold diamond pendant and tassel clipped beside her left horn. White bat-like dragon wings with lavender membranes on her back and a long white scaled dragon tail with gold markings. Outfit: a white sleeveless high-collar qipao-style gown with a high leg slit and a long layered ruffled hem; detached long white sleeves with ruffled edges and lavender lining; a thin gold chain belt with diamond-shaped gold pendants and long lavender-white tassels; white knot rosettes on the skirt; a lace garter with a chain on her right thigh; white pointed heels with jeweled anklets. Palette: white, lavender, pale gold.",
+      "instrument": "Lead vocals and guitar: a pearl-white offset-body electric guitar with a maple neck, gold hardware, two cream soapbar pickups and a white strap; she sings into a vintage chrome microphone on a slim black stand."
+    },
+    {
+      "id": "claude",
+      "name": "Claude",
+      "refs": ["bible/refs/claude-design-sheet.png", "bible/refs/v5-claude.png", "bible/refs/claude-stage-hero.png"],
+      "lock": "Very long, straight copper-orange hair with long side locks framing her face; warm amber eyes; a large orange flower ornament with a gold centre on the left side of her head, layered over a black ribbon bow with cream ribbon tails and small gold tassels; gold drop earrings. Outfit: an ivory Victorian blouse with a ruffled high collar and long sleeves ending in ruffled, laced cuffs; a short ivory capelet embroidered with gold suns; a black ribbon bow tie with an orange flower brooch; a black corset waistband with gold buttons and an orange tassel; a long cream pleated skirt with orange and black front panels, gold sun emblems and a ruffled hem; cream lace-up heeled boots. Palette: copper orange, ivory, black, gold.",
+      "instrument": "Keyboards: a vintage dark mahogany keyboard shaped like a small harmonium on slender brass legs, with brass knobs and trim, a gold sun emblem on the front panel, and a brass music stand holding an open leather-bound book of sheet music."
+    },
+    {
+      "id": "gemini",
+      "name": "Gemini",
+      "refs": ["bible/refs/gemini-design-sheet.png", "bible/refs/v5-gemini.png", "bible/refs/gemini-stage-hero.png"],
+      "lock": "Cat girl. Very long, wavy hair, royal blue at the roots fading through violet to pink at the ends, with two small buns on top and a tall ahoge; blue cat ears with pink insides and white fluff; heterochromia: her right eye is pink-red and her left eye is gold; a fluffy blue cat tail fading to violet. Iridescent four-pointed star hair clips with purple ribbons and short gold chains. Outfit: a navy cropped halter top with a violet sash and bare midriff; off-shoulder detached sleeves, wide and white with navy panels; a long open navy coat with gold trim and dangling iridescent star charms; a navy mini skirt over white frills with a gold chain belt; a navy thigh garter with a star charm; slouchy white leg warmers over navy socks; chunky navy platform shoes with iridescent soles and bows. Palette: royal blue, violet, navy, white, iridescent accents.",
+      "instrument": "Bass: a five-string electric bass with a swirling violet and purple marbled galaxy finish, gold hardware and five gold tuners, a dark fretboard with small star inlays, and an iridescent four-pointed star on the headstock."
+    },
+    {
+      "id": "deepseek",
+      "name": "DeepSeek",
+      "refs": ["bible/refs/deepseek-design-sheet.png", "bible/refs/v5-deepseek.png", "bible/refs/deepseek-stage-hero.png"],
+      "lock": "Whale maid. Very long, wavy hair, deep navy blue fading to bright sky blue at the ends, with a big curled ahoge; bright blue eyes; a small fang when she smiles. Floppy whale-fin ears on both sides of her head, navy on top and white underneath; a white frilled maid headdress and a blue ribbon bow on the left side of her hair; a large navy whale tail with a white underside. Outfit: a navy long-sleeved maid dress with white frilled cuffs; a navy bow tie with a blue gem brooch; a white bodice front with small gold buttons; a white frilled apron with a blue whale logo (a smiling whale blowing a water spout) and a big white bow at the back; a navy skirt with gold baroque embroidery and blue bows over white petticoat frills; white socks and navy Mary-Jane shoes with blue bows. Palette: navy, sky blue, white, gold.",
+      "instrument": "Drums: a clear, blue-tinted acrylic drum kit with chrome hardware: a bass drum whose front head shows the blue whale logo, a snare, two rack toms and a floor tom, gold crash and ride cymbals and a hi-hat; she plays with blue drumsticks."
+    }
+  ]
+}

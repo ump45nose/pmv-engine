@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
+import fourBandBible from "../examples/four-band/bible/characters.json";
+import fourBandShots from "../examples/four-band/shots.json";
 import example from "../examples/shots.example.json";
+import { BibleSchema } from "../src/schema/bible";
 import { ProjectSchema } from "../src/schema/project";
 import { ShotsSchema, type Shot } from "../src/schema/shots";
 import { SongSchema } from "../src/schema/song";
@@ -44,6 +47,25 @@ describe("shots schema", () => {
     const [a, b] = example.shots;
     expect(messages({ version: 1, shots: [b, a] })).toEqual(["shots must be in bar order and must not overlap"]);
     expect(messages({ version: 1, shots: [a, { ...b, id: a!.id }] })).toEqual([`duplicate shot id "${a!.id}"`]);
+  });
+});
+
+describe("bible schema", () => {
+  test("the four-band example validates and its shots only use its characters", () => {
+    const ids = BibleSchema.parse(fourBandBible).characters.map((c) => c.id);
+    expect(ids).toEqual(["gpt", "claude", "gemini", "deepseek"]);
+    const cast = ShotsSchema.parse(fourBandShots).shots.flatMap((s) => s.characters);
+    expect(cast.filter((id) => !ids.includes(id))).toEqual([]);
+  });
+
+  test("at most three refs per character, ids unique", () => {
+    const [gpt] = fourBandBible.characters;
+    const issues = (characters: unknown[]) => {
+      const result = BibleSchema.safeParse({ ...fourBandBible, characters });
+      return result.success ? [] : result.error.issues.map((i) => i.message);
+    };
+    expect(issues([{ ...gpt, refs: ["1.png", "2.png", "3.png", "4.png"] }])).toHaveLength(1);
+    expect(issues([gpt, gpt])).toEqual(['duplicate character id "gpt"']);
   });
 });
 

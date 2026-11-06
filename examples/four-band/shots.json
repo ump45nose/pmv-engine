@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "shots": [
+    {
+      "id": "T1",
+      "bars": [1, 2],
+      "section": "test",
+      "characters": ["deepseek"],
+      "framing": "medium",
+      "base": "DeepSeek sits behind her drum kit facing the camera, both sticks raised high above her head a split second before a big hit, eyes fierce and excited. Setting: a floating stage high above a sea of clouds at dusk. The round stage is pale stone with brass inlays and a softly glowing rim; behind it the orange sun sits low over rolling clouds and the sky fades from amber to violet with a few early stars; distant floating islands trail small waterfalls; paper lanterns hang from thin brass poles along the stage edge; two tall brass lighting towers throw warm spotlights.",
+      "poses": [
+        { "id": "a", "edit": null },
+        { "id": "b", "edit": "Both sticks come down together, hitting the snare and the floor tom at the same moment; her hair bounces up from the impact." },
+        { "id": "c", "edit": "Her right stick strikes the crash cymbal and her body leans forward into the hit." }
+      ],
+      "switch": { "on": "beat", "pattern": ["a", "b", "a", "c"] },
+      "camera": { "move": "static", "depth": 0 },
+      "fx": []
+    },
+    {
+      "id": "T2",
+      "bars": [3, 4],
+      "section": "test",
+      "characters": ["gemini"],
+      "framing": "medium-close",
+      "base": "Gemini plays her bass, slung high so both hands are in frame; her fingers rest on the strings and she looks down at the bass. Setting: a floating stage high above a sea of clouds at dusk. The round stage is pale stone with brass inlays and a softly glowing rim; behind it the orange sun sits low over rolling clouds and the sky fades from amber to violet with a few early stars; distant floating islands trail small waterfalls; paper lanterns hang from thin brass poles along the stage edge; two tall brass lighting towers throw warm spotlights.",
+      "poses": [
+        { "id": "a", "edit": null },
+        { "id": "b", "edit": "Her thumb slaps a string and her head nods down with the beat." },
+        { "id": "c", "edit": "Her index finger plucks a string and she smiles at the camera." }
+      ],
+      "switch": { "on": "beat", "pattern": ["a", "b", "a", "c"] },
+      "camera": { "move": "static", "depth": 0 },
+      "fx": []
+    },
+    {
+      "id": "T3",
+      "bars": [5, 6],
+      "section": "test",
+      "characters": ["gpt"],
+      "framing": "close-up",
+      "base": "GPT sings into a vintage microphone on a stand, eyes half closed. Setting: a floating stage high above a sea of clouds at dusk. The round stage is pale stone with brass inlays and a softly glowing rim; behind it the orange sun sits low over rolling clouds and the sky fades from amber to violet with a few early stars; distant floating islands trail small waterfalls; paper lanterns hang from thin brass poles along the stage edge; two tall brass lighting towers throw warm spotlights.",
+      "poses": [
+        { "id": "a", "edit": null },
+        { "id": "b", "edit": "Eyes closed and mouth wide open on a high note, one hand raised." },
+        { "id": "c", "edit": "Between lines she opens her eyes and smiles at the camera." }
+      ],
+      "switch": { "on": "beat", "pattern": ["a", "b", "a", "c"] },
+      "camera": { "move": "static", "depth": 0 },
+      "fx": []
+    }
+  ]
+}
