@@ -9,6 +9,7 @@ import os
 import string
 from pathlib import Path
 
+# beat_this fetches its checkpoint through torch.hub; keep it in the repo's cache, not ~/.cache.
 os.environ["TORCH_HOME"] = str(Path(__file__).resolve().parents[2] / ".cache" / "torch")
 
 import numpy as np  # noqa: E402
