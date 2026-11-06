@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { chmod, mkdir } from "node:fs/promises";
 import path from "node:path";
-import { generateArt, readJobs, selectPoses, type ArtOptions, type Backend, type Drawing, type Status } from "../src/lib/art";
+import { generateArt, pngSize, readJobs, selectPoses, type ArtOptions, type Backend, type Drawing, type Status } from "../src/lib/art";
 import { basePrompt, variantPrompt } from "../src/lib/prompt";
 import type { Bible } from "../src/schema/bible";
 import type { Shots } from "../src/schema/shots";
@@ -268,7 +268,39 @@ describe("artcheck", () => {
     expect(check).toMatchObject({ frames: 96, switches: [9, 18, 27, 35, 44, 53, 62, 70, 79, 88], sizes: { a: [16, 9], b: [16, 9] } });
     expect(await Bun.file(path.join(dir, "art", "S2", "sheet.jpg")).exists()).toBe(true);
     expect(await Bun.file(path.join(dir, "art", "S2", "flip.mp4")).exists()).toBe(true);
-  });
+  }, 30_000);
+
+  test("--paste takes the pose only where it changed and holds the background still", async () => {
+    const dir = await project("artcheck-paste");
+    await Bun.write(
+      path.join(dir, "project.json"),
+      JSON.stringify({ version: 1, title: "t", fps: 24, width: 1920, height: 1080, audio: null, sections: [] }),
+    );
+    // Per-pixel noise stands in for the background texture every drawing redraws; the dark block is the character.
+    const drawing = (seed: number, bx: number, by: number) =>
+      grayPng(1280, 720, (x, y) => {
+        if (x >= bx && x < bx + 120 && y >= by && y < by + 160) return 30;
+        const h = Math.imul(x * 374761393 + y * 668265263 + seed * 2246822519, 1274126177);
+        return 110 + Math.round(40 * Math.sin(x / 80) * Math.cos(y / 64)) + ((h ^ (h >>> 15)) >>> 0) % 25 - 12;
+      });
+    await mkdir(path.join(dir, "art", "S2"), { recursive: true });
+    await Bun.write(path.join(dir, "art", "S2", "a.png"), drawing(1, 300, 200));
+    await Bun.write(path.join(dir, "art", "S2", "b.png"), drawing(2, 760, 260));
+
+    const { code, json } = await runCli("artcheck", "--project", dir, "--bpm", "165", "--only", "S2", "--paste");
+    expect(code).toBe(0);
+    expect(Object.keys(json.outputs)).toEqual(["S2/sheet", "S2/flip", "S2/check", "S2/ab", "S2/sheet-paste", "S2/paste/b", "S2/paste/b.mask"]);
+    const { poses, background } = json.summary.paste.S2;
+    // Both places of the block, grown and feathered, and nothing of the redrawn noise.
+    expect(poses.b.area).toBeGreaterThan(0.08);
+    expect(poses.b.area).toBeLessThan(0.25);
+    expect(background.paste.max).toBeLessThan(0.5);
+    expect(background.original.mean).toBeGreaterThan(1);
+    expect(await pngSize(json.outputs["S2/paste/b"])).toEqual({ width: 1280, height: 720 });
+    expect(await Bun.file(json.outputs["S2/ab"]).exists()).toBe(true);
+    const check = await Bun.file(json.outputs["S2/check"]).json();
+    expect(check.paste.params).toMatchObject({ threshold: 22, grow: 40, feather: 24, half: [960, 540] });
+  }, 120_000);
 });
 
 describe("codex low-effort wrapper", () => {

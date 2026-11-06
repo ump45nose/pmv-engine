@@ -6,12 +6,21 @@ import { required, type Command } from "../lib/cli";
 import { projectPaths, readJson, readProject, writeJson } from "../lib/project";
 import { runPy } from "../lib/py";
 
-/** Per shot: a contact sheet, a flip test at a given tempo, and how far each pose drifts from the base frame. */
+/**
+ * Per shot: a contact sheet, a flip test at a given tempo, and how far each pose drifts from the base frame.
+ * `--paste` (experimental) also pastes each pose back onto the base frame and writes an A/B flip test.
+ */
 export const artcheck: Command = async (args) => {
   const { values } = parseArgs({
     args,
     strict: true,
-    options: { project: { type: "string" }, bpm: { type: "string" }, only: { type: "string" }, seconds: { type: "string", default: "4" } },
+    options: {
+      project: { type: "string" },
+      bpm: { type: "string" },
+      only: { type: "string" },
+      seconds: { type: "string", default: "4" },
+      paste: { type: "boolean", default: false },
+    },
   });
   const dir = required(values.project, "--project");
   const bpm = Number(required(values.bpm, "--bpm"));
@@ -29,6 +38,7 @@ export const artcheck: Command = async (args) => {
 
   const outputs: Record<string, string> = {};
   const drift: Record<string, unknown> = {};
+  const paste: Record<string, unknown> = {};
   for (const shot of chosen) {
     const folder = path.join(paths.art, shot.id);
     const poses = shot.poses.map((p) => p.id);
@@ -38,13 +48,24 @@ export const artcheck: Command = async (args) => {
     const pattern = shot.switch?.pattern ?? poses.slice(0, 1);
     const report = await runPy(
       "artcheck",
-      ["--dir", folder, "--poses", poses.join(","), "--pattern", pattern.join(","), "--bpm", String(bpm), "--fps", String(project.fps), "--seconds", String(seconds)],
+      ["--dir", folder, "--poses", poses.join(","), "--pattern", pattern.join(","), "--bpm", String(bpm), "--fps", String(project.fps), "--seconds", String(seconds)].concat(
+        values.paste ? ["--paste"] : [],
+      ),
       ArtCheckSchema,
     );
     const file = path.join(folder, "check.json");
     await writeJson(file, report);
     Object.assign(outputs, { [`${shot.id}/sheet`]: report.sheet, [`${shot.id}/flip`]: report.flip, [`${shot.id}/check`]: file });
     drift[shot.id] = report.drift;
+    if (report.paste) {
+      Object.assign(outputs, { [`${shot.id}/ab`]: report.paste.ab, [`${shot.id}/sheet-paste`]: report.paste.sheet });
+      for (const [pose, p] of Object.entries(report.paste.poses))
+        Object.assign(outputs, { [`${shot.id}/paste/${pose}`]: p.image, [`${shot.id}/paste/${pose}.mask`]: p.mask });
+      paste[shot.id] = {
+        poses: Object.fromEntries(Object.entries(report.paste.poses).map(([pose, p]) => [pose, { area: p.area, seam: p.seam }])),
+        background: report.paste.background,
+      };
+    }
   }
-  return { outputs, summary: { bpm, fps: project.fps, seconds, drift }, next: null };
+  return { outputs, summary: { bpm, fps: project.fps, seconds, drift, ...(values.paste && { paste }) }, next: null };
 };

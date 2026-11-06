@@ -112,6 +112,39 @@ export const QaReportSchema = z.strictObject({
 });
 
 const Size = z.tuple([z.number().int().positive(), z.number().int().positive()]);
+const Flicker = z.strictObject({ mean: z.number().nonnegative(), max: z.number().nonnegative() });
+
+/** What `pmv artcheck --paste` (experimental) adds: every later pose pasted back onto the base frame. */
+export const PasteSchema = z.strictObject({
+  /** Flip test, 1920x540: the original drawings on the left, the pasted ones on the right. */
+  ab: z.string(),
+  /** The base frame and the pasted poses, each pose's mask below it. */
+  sheet: z.string(),
+  poses: z.record(
+    z.string(),
+    z.strictObject({
+      image: z.string(),
+      /** The pasted pose dimmed outside its mask, the mask's outer edge in red. */
+      mask: z.string(),
+      /** Share of pixels not taken purely from the base frame. */
+      area: Frac,
+      /** Mean absolute difference (0-255) between the pose and the base frame inside the feather band: what the seam has to hide. */
+      seam: z.number().nonnegative(),
+    }),
+  ),
+  /** The pixels outside every pose's mask, and their mean absolute gray change (0-255) across the switches of ab.mp4, per side. */
+  background: z.strictObject({ area: Frac, original: Flicker, paste: Flicker }),
+  params: z.strictObject({
+    blur: z.number().positive(),
+    threshold: z.number().positive(),
+    open: z.number().nonnegative(),
+    close: z.number().nonnegative(),
+    minArea: z.number().nonnegative(),
+    grow: z.number().nonnegative(),
+    feather: z.number().positive(),
+    half: Size,
+  }),
+});
 
 /** What `pmv_tools.artcheck` prints for one shot; `pmv artcheck` saves it as art/<shot>/check.json. */
 export const ArtCheckSchema = z.strictObject({
@@ -120,13 +153,24 @@ export const ArtCheckSchema = z.strictObject({
   /** Pixel size of each pose's PNG. */
   sizes: z.record(z.string(), Size),
   /**
-   * Each later pose against the base frame at 320x180 gray: mean absolute difference (0-255) over the whole frame
-   * and over the edge band (top 15%, left and right 10%), a rough proxy for background drift.
+   * Each later pose against the base frame at 320x180 gray: mean absolute difference (0-255) over the whole frame,
+   * over the edge band (top 15%, left and right 10%), a rough proxy for background drift, and over the band's two
+   * top corners, background only in the test shots. `shift`: the pose's overall offset in pixels by phase correlation
+   * at full size, with the correlation peak (0-1).
    */
-  drift: z.record(z.string(), z.strictObject({ full: z.number().nonnegative(), edge: z.number().nonnegative() })),
+  drift: z.record(
+    z.string(),
+    z.strictObject({
+      full: z.number().nonnegative(),
+      edge: z.number().nonnegative(),
+      corners: z.number().nonnegative(),
+      shift: z.strictObject({ dx: z.number().int(), dy: z.number().int(), peak: z.number() }),
+    }),
+  ),
   /** Frames of flip.mp4 where the drawing changes. */
   switches: z.array(Frame),
   frames: z.number().int().positive(),
+  paste: PasteSchema.nullable(),
   params: z.strictObject({
     analysisSize: Size,
     edgeBand: z.strictObject({ top: Frac, sides: Frac }),

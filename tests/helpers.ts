@@ -42,15 +42,17 @@ function pngChunk(type: string, data: Uint8Array): Uint8Array {
   return out;
 }
 
-/** A flat gray 8-bit PNG. */
-export function grayPng(width: number, height: number, level: number): Uint8Array {
+/** An 8-bit gray PNG, flat or with pixel (x, y) at `level(x, y)`. */
+export function grayPng(width: number, height: number, level: number | ((x: number, y: number) => number)): Uint8Array {
   const header = new Uint8Array(13);
   const view = new DataView(header.buffer);
   view.setUint32(0, width);
   view.setUint32(4, height);
   header.set([8, 0, 0, 0, 0], 8); // bit depth 8, grayscale
   const rows = new Uint8Array((width + 1) * height);
-  for (let y = 0; y < height; y++) rows.fill(level, y * (width + 1) + 1, (y + 1) * (width + 1));
+  for (let y = 0; y < height; y++)
+    if (typeof level === "number") rows.fill(level, y * (width + 1) + 1, (y + 1) * (width + 1));
+    else for (let x = 0; x < width; x++) rows[y * (width + 1) + 1 + x] = level(x, y);
   const signature = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   const chunks = [pngChunk("IHDR", header), pngChunk("IDAT", deflateSync(rows)), pngChunk("IEND", new Uint8Array())];
   return new Uint8Array([...signature, ...chunks.flatMap((c) => [...c])]);
