@@ -6,6 +6,7 @@ dependencies = [
     "beat-this==1.1.0",
     "imageio-ffmpeg>=0.8.1",
     "numpy>=2.5.4",
+    "scipy>=1.18.1",
 ]
 
 [dependency-groups]

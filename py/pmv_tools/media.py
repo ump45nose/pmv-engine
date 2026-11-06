@@ -27,9 +27,9 @@ def probe(path):
     return info
 
 
-def run_ffmpeg(args):
-    """Run ffmpeg quietly and return its stdout; raises with its stderr on failure."""
-    proc = subprocess.run([FFMPEG, "-v", "error", *args], capture_output=True)
+def run_ffmpeg(args, input=None):
+    """Run ffmpeg quietly, feeding it `input` bytes on stdin, and return its stdout; raises with its stderr on failure."""
+    proc = subprocess.run([FFMPEG, "-v", "error", *args], input=input, capture_output=True)
     if proc.returncode != 0:
         raise RuntimeError(f"ffmpeg failed: {proc.stderr.decode(errors='replace').strip()}")
     return proc.stdout
@@ -54,3 +54,10 @@ def read_gray(path, width, height):
 def read_rgb(path, width, height):
     """All frames scaled to width x height, 8-bit RGB, shape (frames, height, width, 3)."""
     return _raw_frames(path, width, height, "rgb24").reshape(-1, height, width, 3)
+
+
+def write_png(path, rgb):
+    """Write an 8-bit RGB array of shape (height, width, 3) as a PNG."""
+    height, width, _ = rgb.shape
+    args = ["-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{width}x{height}", "-i", "-", "-frames:v", "1", str(path)]
+    run_ffmpeg(args, np.ascontiguousarray(rgb).tobytes())

@@ -10,6 +10,7 @@ import wave
 
 import imageio_ffmpeg
 import numpy as np
+from scipy import ndimage as ndi
 
 SR = 44100
 # Bass roots and triads per bar; section B uses a different progression and a brighter mix.
@@ -158,6 +159,23 @@ def pulse_clip(flashes=(40, 120)):
         frames.append((img * (1 - alpha) + 255 * alpha).round().astype(np.uint8))
     truth = {"cuts": list(shot_starts[1:]), "switches": switches, "flashes": flashes, "stillFrames": n - freeze}
     return frames, truth
+
+
+BLOCK = (120, 160)  # width, height of the character block in drawing()
+
+
+def drawing(seed, block, specks=(), size=(1280, 720)):
+    """A test drawing, RGB uint8: a smooth background whose fine texture is redrawn differently for every seed, with a
+    dark BLOCK (the character) at top-left corner `block` and a bright 10x10 dot at each of `specks` (x, y)."""
+    w, h = size
+    y, x = np.mgrid[0:h, 0:w]
+    texture = ndi.gaussian_filter(np.random.default_rng(seed).normal(0, 30, (h, w)), 1.5)  # wisps 2-4 px across
+    gray = 110 + 50 * np.sin(2 * np.pi * x / 500) * np.cos(2 * np.pi * y / 400) + texture
+    image = np.repeat(gray[..., None], 3, axis=2)
+    image[block[1] : block[1] + BLOCK[1], block[0] : block[0] + BLOCK[0]] = (30, 20, 60)
+    for sx, sy in specks:
+        image[sy : sy + 10, sx : sx + 10] += 70
+    return np.clip(image, 0, 255).round().astype(np.uint8)
 
 
 if __name__ == "__main__":
