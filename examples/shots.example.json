@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "shots": [
+    {
+      "id": "C1-01",
+      "bars": [31, 32],
+      "section": "chorus",
+      "characters": ["gpt", "claude", "gemini", "deepseek"],
+      "framing": "wide",
+      "base": "the whole band on stage under blue rim light, crowd silhouettes in front",
+      "poses": [
+        { "id": "a", "edit": null },
+        { "id": "b", "edit": "everyone leans into the downbeat, guitars tilted up" }
+      ],
+      "switch": { "on": "beat", "pattern": ["a", "b"] },
+      "camera": { "move": "pull", "depth": 0.4 },
+      "fx": ["flash@downbeat"]
+    },
+    {
+      "id": "C1-03",
+      "bars": [33, 35],
+      "section": "chorus",
+      "characters": ["gpt"],
+      "framing": "medium",
+      "base": "drums, both sticks raised before the hit",
+      "poses": [
+        { "id": "a", "edit": null },
+        { "id": "b", "edit": "sticks down on the snare, hair bounces" }
+      ],
+      "switch": { "on": "beat", "pattern": ["a", "b"] },
+      "camera": { "move": "push", "depth": 0.6 },
+      "fx": ["flash@downbeat"]
+    }
+  ]
+}
