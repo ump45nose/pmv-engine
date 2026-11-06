@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { copyFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import type { z } from "zod";
 import { ProjectSchema, type Project } from "../schema/project";
@@ -29,6 +29,17 @@ export async function writeJson(file: string, data: unknown): Promise<void> {
 }
 
 export const readProject = (dir: string) => readJson(projectPaths(dir).project, ProjectSchema, "run `pmv init` first");
+
+/** Copy a song into the project's song/ folder; returns its path relative to the project. */
+export async function importAudio(dir: string, file: string): Promise<string> {
+  const paths = projectPaths(dir);
+  const source = path.resolve(file);
+  if (!(await Bun.file(source).exists())) throw new Error(`audio file not found: ${source}`);
+  const audio = path.join("song", `audio${path.extname(source).toLowerCase()}`);
+  await mkdir(paths.songDir, { recursive: true });
+  await copyFile(source, path.join(paths.root, audio));
+  return audio;
+}
 
 /**
  * The song range a render covers by default, in whole frames: the first manual section, else the whole song.

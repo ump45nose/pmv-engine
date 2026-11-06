@@ -41,7 +41,7 @@ export const render: Command = async (args) => {
     height: project.height,
     startFrame,
     endFrame,
-    audio: path.relative(paths.songDir, path.join(paths.root, project.audio)),
+    audio: path.relative(paths.songDir, path.join(paths.root, song.audio.path)),
     song,
   };
   const propsFile = path.join(REPO, ".cache", "render", `debug-grid-${process.pid}.json`);

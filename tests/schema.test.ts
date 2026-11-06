@@ -59,6 +59,11 @@ describe("project and song schemas", () => {
     expect(ProjectSchema.safeParse({ ...project, sections: [sections[0]] }).success).toBe(true);
   });
 
+  test("audio may be missing until analyze", () => {
+    expect(ProjectSchema.safeParse({ ...project, audio: null }).success).toBe(true);
+    expect(ProjectSchema.safeParse({ ...project, audio: "" }).success).toBe(false);
+  });
+
   test("beats must be increasing", () => {
     const song = {
       version: 1,

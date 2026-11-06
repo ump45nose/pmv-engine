@@ -2,15 +2,20 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import { SongAnalysisSchema, SongSchema } from "../schema/song";
 import { parse, pmv, required, type Command } from "../lib/cli";
-import { projectPaths, readProject, writeJson } from "../lib/project";
+import { importAudio, projectPaths, readProject, writeJson } from "../lib/project";
 import { runPy } from "../lib/py";
 import { mergeSections } from "../lib/sections";
 
 export const analyze: Command = async (args) => {
-  const { values } = parseArgs({ args, strict: true, options: { project: { type: "string" } } });
+  const { values } = parseArgs({ args, strict: true, options: { project: { type: "string" }, audio: { type: "string" } } });
   const dir = required(values.project, "--project");
   const paths = projectPaths(dir);
   const project = await readProject(dir);
+  if (values.audio !== undefined) {
+    project.audio = await importAudio(dir, values.audio);
+    await writeJson(paths.project, project);
+  }
+  if (project.audio === null) throw new Error("the project has no audio yet; pass --audio <file>");
   const audio = path.join(paths.root, project.audio);
 
   const analysis = await runPy("analyze", ["--audio", audio], SongAnalysisSchema);
@@ -33,7 +38,7 @@ export const analyze: Command = async (args) => {
   );
   await writeJson(paths.song, song);
   return {
-    outputs: { song: paths.song },
+    outputs: { song: paths.song, ...(values.audio !== undefined && { project: paths.project, audio }) },
     summary: {
       duration: song.audio.duration,
       bpm: song.bpm,

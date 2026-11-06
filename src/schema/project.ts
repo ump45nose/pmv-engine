@@ -15,8 +15,8 @@ export const ProjectSchema = z
     fps: z.number().int().positive(),
     width: z.number().int().positive(),
     height: z.number().int().positive(),
-    /** Audio file path, relative to the project directory. */
-    audio: z.string().min(1),
+    /** Audio file path, relative to the project directory; null until the song is added with `pmv analyze --audio`. */
+    audio: z.string().min(1).nullable(),
     /** Hand-picked sections in song seconds; they override auto sections where they overlap. */
     sections: z.array(ManualSectionSchema),
   })

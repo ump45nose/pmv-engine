@@ -1,9 +1,8 @@
-import { copyFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import { ProjectSchema, type ManualSection } from "../schema/project";
 import { parse, pmv, required, type Command } from "../lib/cli";
-import { projectPaths, writeJson } from "../lib/project";
+import { importAudio, projectPaths, writeJson } from "../lib/project";
 
 /** `chorus:62.5-88` -> { label: "chorus", start: 62.5, end: 88 } */
 function parseSection(spec: string): ManualSection {
@@ -29,10 +28,7 @@ export const init: Command = async (args) => {
   const dir = required(values.project, "--project");
   const paths = projectPaths(dir);
   if (await Bun.file(paths.project).exists()) throw new Error(`${paths.project} already exists`);
-  const source = path.resolve(required(values.audio, "--audio"));
-  if (!(await Bun.file(source).exists())) throw new Error(`audio file not found: ${source}`);
 
-  const audio = path.join("song", `audio${path.extname(source).toLowerCase()}`);
   const project = parse(
     ProjectSchema,
     {
@@ -41,22 +37,22 @@ export const init: Command = async (args) => {
       fps: Number(values.fps),
       width: Number(values.width),
       height: Number(values.height),
-      audio,
+      audio: null,
       sections: values.section.map(parseSection),
     },
     "project settings",
   );
-  await mkdir(paths.songDir, { recursive: true });
-  await copyFile(source, path.join(paths.root, audio));
+  if (values.audio !== undefined) project.audio = await importAudio(dir, values.audio);
   await writeJson(paths.project, project);
   return {
-    outputs: { project: paths.project, audio: path.join(paths.root, audio) },
+    outputs: { project: paths.project, ...(project.audio && { audio: path.join(paths.root, project.audio) }) },
     summary: {
       title: project.title,
       fps: project.fps,
       size: `${project.width}x${project.height}`,
+      audio: project.audio,
       sections: project.sections.map((s) => `${s.label} ${s.start}-${s.end}s`),
     },
-    next: pmv("analyze", "--project", dir),
+    next: project.audio ? pmv("analyze", "--project", dir) : pmv("analyze", "--project", dir, "--audio", "<song file>"),
   };
 };

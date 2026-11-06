@@ -20,9 +20,9 @@ test(
       return json;
     };
 
-    await step("init", "--audio", audio, "--section", "chorus:5-17");
+    await step("init", "--section", "chorus:5-17");
 
-    const analyzed = await step("analyze");
+    const analyzed = await step("analyze", "--audio", audio);
     const song: Song = await Bun.file(analyzed.outputs.song).json();
     expect(Math.abs(song.bpm - truth.bpm)).toBeLessThanOrEqual(1);
     expect(hitRate(song.beats, truth.beats)).toBeGreaterThanOrEqual(0.95);

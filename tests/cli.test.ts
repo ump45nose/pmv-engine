@@ -35,12 +35,32 @@ describe("cli", () => {
     expect(again.json.error).toContain("already exists");
   });
 
+  test("init can wait for the audio; analyze asks for it and imports it", async () => {
+    const dir = await tempDir("init-no-audio");
+    const project = path.join(dir, "proj");
+    const { code, json } = await runCli("init", "--project", project);
+    expect(code).toBe(0);
+    expect(json.next).toBe(`bun run pmv analyze --project ${project} --audio '<song file>'`);
+    expect((await Bun.file(path.join(project, "project.json")).json()).audio).toBeNull();
+
+    const missing = await runCli("analyze", "--project", project);
+    expect(missing.code).not.toBe(0);
+    expect(missing.json.error).toBe("the project has no audio yet; pass --audio <file>");
+
+    // The copy and project.json update happen before the analysis, which fails on this fake file.
+    const audio = path.join(dir, "Song.MP3");
+    await Bun.write(audio, "not really audio");
+    expect((await runCli("analyze", "--project", project, "--audio", audio)).code).not.toBe(0);
+    expect((await Bun.file(path.join(project, "project.json")).json()).audio).toBe("song/audio.mp3");
+    expect(await Bun.file(path.join(project, "song", "audio.mp3")).text()).toBe("not really audio");
+  });
+
   test("init rejects bad arguments", async () => {
     const dir = await tempDir("init-bad");
     const audio = path.join(dir, "a.wav");
     await Bun.write(audio, "x");
     const bad = async (...args: string[]) => (await runCli("init", "--project", path.join(dir, "p"), ...args)).json.error as string;
-    expect(await bad()).toBe("missing --audio");
+    expect(await bad("--audio", path.join(dir, "missing.wav"))).toContain("audio file not found");
     expect(await bad("--audio", audio, "--section", "chorus 1-2")).toContain("label:start-end");
     expect(await bad("--audio", audio, "--section", "chorus:9-3")).toContain("section end must be after start");
     expect(await bad("--audio", audio, "--fps", "abc")).toContain("fps");
