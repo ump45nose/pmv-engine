@@ -26,7 +26,7 @@ export async function run(
   ]);
   if (code !== 0) {
     const tail = stderr.trim().split("\n").slice(-3).join(" | ");
-    throw new Error(`${path.basename(cmd[0]!)} ${cmd.slice(1, 5).join(" ")} exited with code ${code}: ${tail}`);
+    throw new Error(`${path.basename(cmd[0]!)} ${cmd.slice(1, 6).join(" ")} exited with code ${code}: ${tail}`);
   }
   return stdout;
 }
