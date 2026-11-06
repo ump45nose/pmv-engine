@@ -1,6 +1,7 @@
 import numpy as np
 
-from pmv_tools.paste import FEATHER, GROW, change_mask, composite, distance_to
+from pmv_tools.media import png_size, read_rgb, write_png
+from pmv_tools.paste import FEATHER, GROW, change_mask, composite, distance_to, paste, read_mask
 from tests.synth import BLOCK, drawing
 
 OLD, NEW = (300, 200), (760, 260)
@@ -42,3 +43,33 @@ def test_redrawn_texture_alone_takes_nothing_from_the_pose():
     assert (change_mask(base, drawing(2, OLD)) == 0).all()
     assert (change_mask(base, base) == 0).all()
     assert np.array_equal(composite(base, drawing(2, OLD), change_mask(base, base)), base)
+
+
+def test_paste_writes_the_final_frame_and_a_16_bit_mask(tmp_path):
+    base, raw = drawing(1, OLD), drawing(2, NEW)
+    write_png(tmp_path / "a.png", base)
+    write_png(tmp_path / "b.raw.png", raw)
+    report = paste(tmp_path, "a", ["b"])
+    mask = change_mask(base, raw)
+    assert np.array_equal(read_rgb(tmp_path / "b.png", 1280, 720)[0], composite(base, raw, mask))
+    assert (tmp_path / "b.mask.png").read_bytes()[24:26] == bytes([16, 0])  # bit depth 16, gray
+    assert np.abs(read_mask(tmp_path / "b.mask.png", 1280, 720) - mask).max() <= 0.5 / 65535
+    assert report["size"] == [1280, 720]
+    assert report["poses"]["b"] == {
+        "image": str(tmp_path / "b.png"),
+        "mask": str(tmp_path / "b.mask.png"),
+        "rawSize": [1280, 720],
+        "area": round(float((mask > 0).mean()), 3),
+    }
+    assert report["params"]["feather"] == FEATHER
+
+
+def test_paste_scales_a_raw_drawing_of_another_size_to_the_base_frame(tmp_path):
+    base = drawing(1, OLD)
+    write_png(tmp_path / "a.png", base)
+    write_png(tmp_path / "c.raw.png", drawing(2, NEW, size=(1279, 720)))  # like the 1671 px wide T2/c against 1672
+    report = paste(tmp_path, "a", ["c"])
+    assert report["poses"]["c"]["rawSize"] == [1279, 720]
+    assert png_size(tmp_path / "c.png") == png_size(tmp_path / "c.mask.png") == [1280, 720]
+    scaled = read_rgb(tmp_path / "c.raw.png", 1280, 720)[0]
+    assert np.array_equal(read_rgb(tmp_path / "c.png", 1280, 720)[0], composite(base, scaled, change_mask(base, scaled)))

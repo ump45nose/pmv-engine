@@ -1,12 +1,22 @@
 """ffmpeg helpers on top of the binary shipped with imageio-ffmpeg."""
 
 import re
+import struct
 import subprocess
+from pathlib import Path
 
 import imageio_ffmpeg
 import numpy as np
 
 FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
+
+
+def png_size(path):
+    """[width, height] from the PNG header."""
+    head = Path(path).read_bytes()[:24]
+    if head[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError(f"{path} is not a PNG")
+    return list(struct.unpack(">II", head[16:24]))
 
 
 def probe(path):
@@ -56,8 +66,20 @@ def read_rgb(path, width, height):
     return _raw_frames(path, width, height, "rgb24").reshape(-1, height, width, 3)
 
 
+def read_gray16(path, width, height):
+    """All frames scaled to width x height, 16-bit gray, shape (frames, height, width)."""
+    return _raw_frames(path, width, height, "gray16le").view("<u2").reshape(-1, height, width)
+
+
 def write_png(path, rgb):
     """Write an 8-bit RGB array of shape (height, width, 3) as a PNG."""
     height, width, _ = rgb.shape
     args = ["-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{width}x{height}", "-i", "-", "-frames:v", "1", str(path)]
     run_ffmpeg(args, np.ascontiguousarray(rgb).tobytes())
+
+
+def write_png16(path, gray):
+    """Write a uint16 array of shape (height, width) as a 16-bit gray PNG."""
+    height, width = gray.shape
+    args = ["-y", "-f", "rawvideo", "-pix_fmt", "gray16le", "-s", f"{width}x{height}", "-i", "-", "-frames:v", "1", str(path)]
+    run_ffmpeg(args, np.ascontiguousarray(gray, "<u2").tobytes())

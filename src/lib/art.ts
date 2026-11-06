@@ -2,10 +2,12 @@ import { appendFile, mkdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { BibleSchema } from "../schema/bible";
 import { JobSchema, type Job } from "../schema/jobs";
+import { PasteSchema } from "../schema/paste";
 import { ShotsSchema, type Pose, type Shot } from "../schema/shots";
 import { parse, round } from "./cli";
 import { projectPaths, readJson } from "./project";
 import { basePrompt, cast, characterRefs, variantPrompt } from "./prompt";
+import { runPy } from "./py";
 
 export type Size = NonNullable<Job["size"]>;
 export type Codex = Job["codex"];
@@ -101,6 +103,12 @@ export function selectPoses(shots: Shot[], only: string | undefined): Map<string
     selected.set(shot.id, poses);
   }
   return selected;
+}
+
+/** Paste variants' raw drawings back onto the shot's base frame, which writes their final frames and masks; see pmv_tools.paste. */
+export function pasteVariants(dir: string, shot: Shot, poses: string[]) {
+  const folder = path.join(projectPaths(dir).art, shot.id);
+  return runPy("paste", ["--dir", folder, "--base", shot.poses[0]!.id, "--poses", poses.join(",")], PasteSchema);
 }
 
 /** Runs tasks on at most `n` numbered workers at a time. */

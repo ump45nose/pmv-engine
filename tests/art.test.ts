@@ -246,6 +246,38 @@ describe("art", () => {
   });
 });
 
+/** Bit depth and colour type from a PNG header. */
+const pngFormat = async (file: string) => [...new Uint8Array(await Bun.file(file).slice(24, 26).arrayBuffer())];
+
+describe("paste", () => {
+  test("rebuilds final frames and 16-bit masks from the raw drawings, scaling each to its base frame", async () => {
+    const dir = await project("paste");
+    const folder = path.join(dir, "art", "S1");
+    await mkdir(folder, { recursive: true });
+    await Bun.write(path.join(folder, "a.png"), grayPng(160, 90, 40));
+    await Bun.write(path.join(folder, "b.raw.png"), grayPng(159, 90, 90)); // differs everywhere, 1 px narrower
+    await Bun.write(path.join(folder, "c.raw.png"), grayPng(160, 90, 41)); // differs nowhere
+    const { code, json } = await runCli("paste", "--project", dir, "--only", "S1");
+    expect(code).toBe(0);
+    expect(json.outputs).toEqual({
+      "S1/b": path.join(folder, "b.png"),
+      "S1/b.mask": path.join(folder, "b.mask.png"),
+      "S1/c": path.join(folder, "c.png"),
+      "S1/c.mask": path.join(folder, "c.mask.png"),
+    });
+    expect(json.summary).toMatchObject({ pasted: 2, poses: ["S1/b mask area 1, raw 159x90 scaled to 160x90", "S1/c mask area 0"], params: { grow: 40, feather: 24 } });
+    for (const pose of ["b", "c"]) {
+      expect(await pngSize(path.join(folder, `${pose}.png`))).toEqual({ width: 160, height: 90 });
+      expect(await pngSize(path.join(folder, `${pose}.mask.png`))).toEqual({ width: 160, height: 90 });
+      expect(await pngFormat(path.join(folder, `${pose}.mask.png`))).toEqual([16, 0]);
+    }
+    expect(await Bun.file(path.join(dir, "jobs.jsonl")).exists()).toBe(false);
+
+    const bad = await runCli("paste", "--project", dir, "--only", "S1:a");
+    expect(bad.json.error).toBe("nothing to paste: the selected poses are all base frames, which are their own final frames");
+  }, 30_000);
+});
+
 describe("artcheck", () => {
   test("writes a contact sheet, a flip test and drift numbers per shot", async () => {
     const dir = await project("artcheck");

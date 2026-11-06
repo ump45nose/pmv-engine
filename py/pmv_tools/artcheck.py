@@ -15,13 +15,12 @@ the left and the pasted ones on the right) and sheet-paste.jpg (the pasted poses
 
 import argparse
 import json
-import struct
 from pathlib import Path
 
 import imageio_ffmpeg
 import numpy as np
 
-from pmv_tools.media import read_gray, read_rgb, run_ffmpeg, write_png
+from pmv_tools.media import png_size, read_gray, read_rgb, run_ffmpeg, write_png
 from pmv_tools.paste import BLUR, CLOSE, FEATHER, GROW, MIN_AREA, OPEN, THRESHOLD, change_mask, composite, distance_to, review
 
 W, H = 320, 180
@@ -33,13 +32,6 @@ MARGIN = 8  # px of the full drawing kept between a mask and the still region, b
 
 def r(x, digits=2):
     return round(float(x), digits)
-
-
-def png_size(path):
-    head = Path(path).read_bytes()[:24]
-    if head[:8] != b"\x89PNG\r\n\x1a\n":
-        raise ValueError(f"{path} is not a PNG")
-    return list(struct.unpack(">II", head[16:24]))
 
 
 def edge_band():
