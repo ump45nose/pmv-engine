@@ -8,6 +8,7 @@ import json
 import sys
 import wave
 
+import imageio_ffmpeg
 import numpy as np
 
 SR = 44100
@@ -108,6 +109,55 @@ def write_wav(path, samples):
         f.setsampwidth(2)
         f.setframerate(SR)
         f.writeframes(pcm.tobytes())
+
+
+FPS = 24
+CLIP_W, CLIP_H = 640, 360
+
+
+def write_video(path, frames, audio_path=None):
+    """Encode gray uint8 frames to H.264 (crf 18) at FPS, optionally muxing an AAC track."""
+    writer = imageio_ffmpeg.write_frames(
+        str(path),
+        (CLIP_W, CLIP_H),
+        pix_fmt_in="gray",
+        fps=FPS,
+        quality=None,
+        macro_block_size=2,
+        output_params=["-crf", "18"],
+        audio_path=str(audio_path) if audio_path else None,
+        audio_codec="aac" if audio_path else None,
+    )
+    writer.send(None)
+    for f in frames:
+        writer.send(np.ascontiguousarray(f))
+    writer.close()
+
+
+def pulse_clip(flashes=(40, 120)):
+    """10 s of gray frames with known events: (frames, truth).
+
+    Three shots on different smooth backgrounds that pan 2 px per frame; a blob switches between two poses
+    every 9 frames; white flashes decay over three frames; the picture freezes from frame 199 to the end.
+    """
+    n, shot_starts, freeze = 240, (0, 80, 160), 199
+    flashes = list(flashes)
+    switches = [s + k for s in shot_starts for k in range(9, 80, 9) if s + k < min(s + 80, freeze)]
+    x = np.arange(CLIP_W)[None, :]
+    y = np.arange(CLIP_H)[:, None]
+    frames = []
+    for i in range(n):
+        shot = sum(i >= s for s in shot_starts) - 1
+        t = min(i, freeze) - shot_starts[shot]
+        lo, hi = ((30, 110), (140, 220), (70, 170))[shot]
+        img = lo + (hi - lo) * (0.5 + 0.5 * np.sin(2 * np.pi * (x + 2 * t) / CLIP_W + np.pi * y / CLIP_H))
+        pose = sum(shot_starts[shot] < s <= i for s in switches) % 2
+        cx, cy, rx, ry = ((220, 180, 50, 80), (300, 170, 60, 70))[pose]
+        img[((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1] = 20 if shot == 1 else 250
+        alpha = sum({0: 0.8, 1: 0.4, 2: 0.15}.get(i - f, 0.0) for f in flashes)
+        frames.append((img * (1 - alpha) + 255 * alpha).round().astype(np.uint8))
+    truth = {"cuts": list(shot_starts[1:]), "switches": switches, "flashes": flashes, "stillFrames": n - freeze}
+    return frames, truth
 
 
 if __name__ == "__main__":
