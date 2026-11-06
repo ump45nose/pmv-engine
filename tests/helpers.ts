@@ -1,11 +1,12 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 
 export const REPO = path.resolve(import.meta.dir, "..");
 
-/** A fresh directory under the git-ignored .cache/test. */
+/** An emptied directory .cache/test/<name>; it keeps the last run's files for inspection. */
 export async function tempDir(name: string): Promise<string> {
-  const dir = path.join(REPO, ".cache", "test", `${name}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  const dir = path.join(REPO, ".cache", "test", name);
+  await rm(dir, { recursive: true, force: true });
   await mkdir(dir, { recursive: true });
   return dir;
 }
