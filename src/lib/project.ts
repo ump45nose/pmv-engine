@@ -36,8 +36,7 @@ export const readProject = (dir: string) => readJson(projectPaths(dir).project, 
  */
 export function defaultRange(project: Project, song: Song) {
   const section = project.sections[0];
-  return {
-    startFrame: Math.round((section?.start ?? 0) * project.fps),
-    endFrame: Math.round((section?.end ?? song.audio.duration) * project.fps),
-  };
+  return section
+    ? { startFrame: Math.round(section.start * project.fps), endFrame: Math.round(section.end * project.fps) }
+    : { startFrame: 0, endFrame: Math.floor(song.audio.duration * project.fps) };
 }
