@@ -111,6 +111,31 @@ export const QaReportSchema = z.strictObject({
   params: VideoParamsSchema,
 });
 
+const Size = z.tuple([z.number().int().positive(), z.number().int().positive()]);
+
+/** What `pmv_tools.artcheck` prints for one shot; `pmv artcheck` saves it as art/<shot>/check.json. */
+export const ArtCheckSchema = z.strictObject({
+  sheet: z.string(),
+  flip: z.string(),
+  /** Pixel size of each pose's PNG. */
+  sizes: z.record(z.string(), Size),
+  /**
+   * Each later pose against the base frame at 320x180 gray: mean absolute difference (0-255) over the whole frame
+   * and over the edge band (top 15%, left and right 10%), a rough proxy for background drift.
+   */
+  drift: z.record(z.string(), z.strictObject({ full: z.number().nonnegative(), edge: z.number().nonnegative() })),
+  /** Frames of flip.mp4 where the drawing changes. */
+  switches: z.array(Frame),
+  frames: z.number().int().positive(),
+  params: z.strictObject({
+    analysisSize: Size,
+    edgeBand: z.strictObject({ top: Frac, sides: Frac }),
+    panel: Size,
+    bpm: z.number().positive(),
+    fps: z.number().int().positive(),
+  }),
+});
+
 export type VideoEvent = z.infer<typeof VideoEventSchema>;
 export type VideoMeasurement = z.infer<typeof VideoMeasurementSchema>;
 export type BeatAlignment = z.infer<typeof BeatAlignmentSchema>;

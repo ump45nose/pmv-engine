@@ -27,7 +27,8 @@ def probe(path):
     return info
 
 
-def _run(args):
+def run_ffmpeg(args):
+    """Run ffmpeg quietly and return its stdout; raises with its stderr on failure."""
     proc = subprocess.run([FFMPEG, "-v", "error", *args], capture_output=True)
     if proc.returncode != 0:
         raise RuntimeError(f"ffmpeg failed: {proc.stderr.decode(errors='replace').strip()}")
@@ -37,10 +38,19 @@ def _run(args):
 def decode_audio(path, sample_rate=None):
     """Mono float32 samples, at the file's own rate unless sample_rate is given."""
     rate = ["-ar", str(sample_rate)] if sample_rate else []
-    return np.frombuffer(_run(["-i", str(path), "-vn", "-ac", "1", *rate, "-f", "f32le", "-"]), np.float32)
+    return np.frombuffer(run_ffmpeg(["-i", str(path), "-vn", "-ac", "1", *rate, "-f", "f32le", "-"]), np.float32)
+
+
+def _raw_frames(path, width, height, pix_fmt):
+    raw = run_ffmpeg(["-i", str(path), "-an", "-vf", f"scale={width}:{height}", "-pix_fmt", pix_fmt, "-c:v", "rawvideo", "-f", "image2pipe", "-"])
+    return np.frombuffer(raw, np.uint8)
 
 
 def read_gray(path, width, height):
     """All frames scaled to width x height, 8-bit gray, shape (frames, height, width)."""
-    raw = _run(["-i", str(path), "-an", "-vf", f"scale={width}:{height}", "-pix_fmt", "gray", "-c:v", "rawvideo", "-f", "image2pipe", "-"])
-    return np.frombuffer(raw, np.uint8).reshape(-1, height, width)
+    return _raw_frames(path, width, height, "gray").reshape(-1, height, width)
+
+
+def read_rgb(path, width, height):
+    """All frames scaled to width x height, 8-bit RGB, shape (frames, height, width, 3)."""
+    return _raw_frames(path, width, height, "rgb24").reshape(-1, height, width, 3)

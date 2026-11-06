@@ -246,6 +246,31 @@ describe("art", () => {
   });
 });
 
+describe("artcheck", () => {
+  test("writes a contact sheet, a flip test and drift numbers per shot", async () => {
+    const dir = await project("artcheck");
+    await Bun.write(
+      path.join(dir, "project.json"),
+      JSON.stringify({ version: 1, title: "t", fps: 24, width: 1920, height: 1080, audio: null, sections: [] }),
+    );
+    const before = await runCli("artcheck", "--project", dir, "--bpm", "165");
+    expect(before.json.error).toBe("shot S1 has no drawing for pose a, b, c; run `pmv art` first");
+
+    await run(dir, fakeBackend().backend);
+    const { code, json } = await runCli("artcheck", "--project", dir, "--bpm", "165", "--only", "S2");
+    expect(code).toBe(0);
+    expect(Object.keys(json.outputs)).toEqual(["S2/sheet", "S2/flip", "S2/check"]);
+    // Flat placeholder drawings differ by the same amount everywhere.
+    const { full, edge } = json.summary.drift.S2.b;
+    expect(full).toBeGreaterThan(0);
+    expect(edge).toBe(full);
+    const check = await Bun.file(json.outputs["S2/check"]).json();
+    expect(check).toMatchObject({ frames: 96, switches: [9, 18, 27, 35, 44, 53, 62, 70, 79, 88], sizes: { a: [16, 9], b: [16, 9] } });
+    expect(await Bun.file(path.join(dir, "art", "S2", "sheet.jpg")).exists()).toBe(true);
+    expect(await Bun.file(path.join(dir, "art", "S2", "flip.mp4")).exists()).toBe(true);
+  });
+});
+
 describe("codex low-effort wrapper", () => {
   const scripts = path.join(REPO, "scripts", "codex-low-effort");
 

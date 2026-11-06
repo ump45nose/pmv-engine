@@ -48,6 +48,6 @@ export const art: Command = async (args) => {
           (d.attempts > 1 ? ` after ${d.attempts} attempts` : ""),
       ),
     },
-    next: values.dry ? pmv("art", ...args.filter((a) => a !== "--dry")) : null,
+    next: values.dry ? pmv("art", ...args.filter((a) => a !== "--dry")) : pmv("artcheck", "--project", dir, "--bpm", "<bpm>"),
   };
 };
