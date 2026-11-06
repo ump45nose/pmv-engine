@@ -2,7 +2,7 @@ import { appendFile, mkdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { BibleSchema } from "../schema/bible";
 import { JobSchema, type Job } from "../schema/jobs";
-import { PasteSchema } from "../schema/paste";
+import { PasteSchema, type Paste } from "../schema/paste";
 import { ShotsSchema, type Pose, type Shot } from "../schema/shots";
 import { parse, round } from "./cli";
 import { projectPaths, readJson } from "./project";
@@ -40,12 +40,14 @@ export type Drawing = {
   pose: string;
   kind: Job["kind"];
   status: Status;
-  /** Relative to the project directory. */
+  /** What the backend draws, relative to the project directory: a base frame's final frame or a variant's raw drawing. */
   output: string;
   attempts: number;
   seconds: number;
   size: Size | null;
   error: string | null;
+  /** The variant's final frame and mask, when this run pasted it. */
+  paste: Paste["poses"][string] | null;
 };
 
 const ATTEMPTS = 2;
@@ -128,16 +130,20 @@ function workers(n: number) {
 }
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
-const outputOf = (shot: Shot, pose: Pose) => path.join("art", shot.id, `${pose.id}.png`);
+/** The only frame of a pose that later steps read. */
+const finalOf = (shot: Shot, pose: Pose) => path.join("art", shot.id, `${pose.id}.png`);
+const outputOf = (shot: Shot, pose: Pose) => (pose.edit === null ? finalOf(shot, pose) : path.join("art", shot.id, `${pose.id}.raw.png`));
 
 function entry(shot: Shot, pose: Pose, status: Status, rest: Partial<Drawing> = {}): Drawing {
   const kind = pose.edit === null ? "base" : "variant";
-  return { shot: shot.id, pose: pose.id, kind, status, output: outputOf(shot, pose), attempts: 0, seconds: 0, size: null, error: null, ...rest };
+  return { shot: shot.id, pose: pose.id, kind, status, output: outputOf(shot, pose), attempts: 0, seconds: 0, size: null, error: null, paste: null, ...rest };
 }
 
 /**
- * Draw the selected poses: each shot's base frame first, then its variants as edits of it.
- * A drawing whose output was already made from the same prompt and refs is skipped unless `force`.
+ * Draw the selected poses: each shot's base frame first, then its variants as edits of it. A new variant's raw
+ * drawing is pasted back onto the base frame, which writes its final frame and mask.
+ * A drawing whose output was already made from the same prompt and refs is skipped unless `force`; a skipped variant
+ * is pasted again only when its final frame is missing.
  */
 export async function generateArt(dir: string, options: ArtOptions, backend: Backend): Promise<Drawing[]> {
   const paths = projectPaths(dir);
@@ -153,8 +159,8 @@ export async function generateArt(dir: string, options: ArtOptions, backend: Bac
     for (const character of cast(bible, shot))
       for (const ref of character.refs) if (!(await exists(ref))) throw new Error(`${character.id} reference image not found: ${abs(ref)}`);
     const base = shot.poses[0]!;
-    if (!selected.get(shot.id)!.has(base.id) && !(await exists(outputOf(shot, base))))
-      throw new Error(`${abs(outputOf(shot, base))} is missing; add ${shot.id}:${base.id} to --only`);
+    if (!selected.get(shot.id)!.has(base.id) && !(await exists(finalOf(shot, base))))
+      throw new Error(`${abs(finalOf(shot, base))} is missing; add ${shot.id}:${base.id} to --only`);
   }
 
   const run = workers(options.jobs);
@@ -164,7 +170,7 @@ export async function generateArt(dir: string, options: ArtOptions, backend: Bac
     const kind = pose.edit === null ? "base" : "variant";
     const output = outputOf(shot, pose);
     const prompt = kind === "base" ? basePrompt(bible, shot) : variantPrompt(bible, shot, pose);
-    const promptFile = abs(output.replace(/\.png$/, ".prompt.md"));
+    const promptFile = abs(finalOf(shot, pose).replace(/\.png$/, ".prompt.md"));
     const writePrompt = async () => {
       await mkdir(path.dirname(promptFile), { recursive: true });
       await Bun.write(promptFile, prompt);
@@ -174,17 +180,21 @@ export async function generateArt(dir: string, options: ArtOptions, backend: Bac
       return entry(shot, pose, "planned");
     }
 
-    const refPaths = kind === "base" ? characterRefs(bible, shot) : [outputOf(shot, shot.poses[0]!), ...characterRefs(bible, shot)];
+    const refPaths = kind === "base" ? characterRefs(bible, shot) : [finalOf(shot, shot.poses[0]!), ...characterRefs(bible, shot)];
     const refs = await Promise.all(refPaths.map(async (p) => ({ path: p, sha256: await sha256(abs(p)) })));
     const promptSha256 = new Bun.CryptoHasher("sha256").update(prompt).digest("hex");
     const outputSha256 = (await exists(output)) ? await sha256(abs(output)) : null;
-    if (!options.force && isDone(jobs, { output, outputSha256, promptSha256, refs })) return entry(shot, pose, "skipped");
+    const pasted = async (drawing: Drawing): Promise<Drawing> => ({ ...drawing, paste: (await pasteVariants(dir, shot, [pose.id])).poses[pose.id]! });
+    if (!options.force && isDone(jobs, { output, outputSha256, promptSha256, refs })) {
+      const skipped = entry(shot, pose, "skipped");
+      return kind === "variant" && !options.dry && !(await exists(finalOf(shot, pose))) ? pasted(skipped) : skipped;
+    }
     await writePrompt();
     if (options.dry) return entry(shot, pose, "planned");
 
     // The output is only ever replaced by a complete, valid PNG.
     const fresh = abs(output.replace(/\.png$/, ".new.png"));
-    return run(async (worker) => {
+    const drawing = await run(async (worker) => {
       let error: string | null = null;
       for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
         const time = new Date().toISOString();
@@ -229,6 +239,7 @@ export async function generateArt(dir: string, options: ArtOptions, backend: Bac
       }
       return entry(shot, pose, "failed", { attempts: ATTEMPTS, error });
     });
+    return kind === "variant" && drawing.status === "generated" ? pasted(drawing) : drawing;
   }
 
   const perShot = await Promise.all(

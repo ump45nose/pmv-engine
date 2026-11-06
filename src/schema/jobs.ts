@@ -16,6 +16,7 @@ export const JobSchema = z.strictObject({
   promptSha256: Sha256,
   /** In the order given to the backend; a variant's first ref is its base frame. */
   refs: z.array(z.strictObject({ path: z.string().min(1), sha256: Sha256 })),
+  /** What the backend wrote: a base frame, or a variant's raw drawing art/<shot>/<pose>.raw.png before it is pasted back onto the base frame. */
   output: z.string().min(1),
   /** null when the attempt failed. */
   outputSha256: Sha256.nullable(),

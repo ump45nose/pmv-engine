@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { chmod, mkdir } from "node:fs/promises";
+import { chmod, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
-import { generateArt, pngSize, readJobs, selectPoses, type ArtOptions, type Backend, type Drawing, type Status } from "../src/lib/art";
+import { generateArt, pngSize, readJobs, selectPoses, sha256, type ArtOptions, type Backend, type Drawing, type Status } from "../src/lib/art";
 import { basePrompt, variantPrompt } from "../src/lib/prompt";
 import type { Bible } from "../src/schema/bible";
 import type { Shots } from "../src/schema/shots";
@@ -66,8 +66,8 @@ async function project(name: string, data: Shots = shots): Promise<string> {
 type Call = { label: string; refs: string[]; worker: number; start: number; end: number };
 let made = 0;
 
-/** Writes a distinct placeholder PNG per call; `failures` counts down failed attempts per `shot/pose`. */
-function fakeBackend(failures: Record<string, number> = {}) {
+/** Writes a distinct placeholder PNG per call, or `image(label)`; `failures` counts down failed attempts per `shot/pose`. */
+function fakeBackend(failures: Record<string, number> = {}, image = (_label: string) => grayPng(16, 9, ++made)) {
   const calls: Call[] = [];
   const backend: Backend = {
     name: "fake",
@@ -76,7 +76,7 @@ function fakeBackend(failures: Record<string, number> = {}) {
       await Bun.sleep(30);
       let error: string | null = `${label} broke`;
       if (!((failures[label] ?? 0) > 0)) {
-        await Bun.write(output, grayPng(16, 9, ++made));
+        await Bun.write(output, image(label));
         error = null;
       } else failures[label]!--;
       calls.push({ label, refs, worker, start, end: performance.now() });
@@ -90,6 +90,8 @@ const run = (dir: string, backend: Backend, options: Partial<ArtOptions> = {}) =
   generateArt(dir, { jobs: 2, force: false, dry: false, ...options }, backend);
 const statuses = (drawings: Drawing[]) => Object.fromEntries(drawings.map((d) => [`${d.shot}/${d.pose}`, d.status]));
 const all = (status: Status) => ({ "S1/a": status, "S1/b": status, "S1/c": status, "S2/a": status, "S2/b": status });
+/** Bit depth and colour type from a PNG header. */
+const pngFormat = async (file: string) => [...new Uint8Array(await Bun.file(file).slice(24, 26).arrayBuffer())];
 
 describe("prompts", () => {
   test("are deterministic: base frame layout", () => {
@@ -168,10 +170,55 @@ describe("art", () => {
       "S2/b variant true",
     ]);
     const s1b = jobs.find((j) => j.shot === "S1" && j.pose === "b")!;
-    expect(s1b).toMatchObject({ output: "art/S1/b.png", size: { width: 16, height: 9 }, error: null, backend: "fake", attempt: 1 });
+    expect(s1b).toMatchObject({ output: "art/S1/b.raw.png", size: { width: 16, height: 9 }, error: null, backend: "fake", attempt: 1 });
     expect(s1b.refs.map((r) => r.path)).toEqual(["art/S1/a.png", "bible/refs/ann-1.png", "bible/refs/ann-2.png"]);
     expect(s1b.promptSha256).toBe(new Bun.CryptoHasher("sha256").update(variantPrompt(bible, S1, S1.poses[1]!)).digest("hex"));
-  });
+  }, 30_000);
+
+  test("a new variant is pasted onto its base frame: its raw drawing is kept, scaled, and gives the final frame and mask", async () => {
+    const dir = await project("art-paste");
+    const folder = path.join(dir, "art", "S2");
+    // The variant differs from its base frame everywhere and is 1 px narrower.
+    const { backend } = fakeBackend({}, (label) => (label === "S2/a" ? grayPng(160, 90, 40) : grayPng(159, 90, 90)));
+    const drawings = await run(dir, backend, { only: "S2" });
+    expect(drawings.map((d) => [d.pose, d.status, d.output, d.paste])).toEqual([
+      ["a", "generated", "art/S2/a.png", null],
+      ["b", "generated", "art/S2/b.raw.png", { image: path.join(folder, "b.png"), mask: path.join(folder, "b.mask.png"), rawSize: [159, 90], area: 1 }],
+    ]);
+    expect(await pngSize(path.join(folder, "b.raw.png"))).toEqual({ width: 159, height: 90 });
+    expect(await pngSize(path.join(folder, "b.png"))).toEqual({ width: 160, height: 90 });
+    expect(await pngSize(path.join(folder, "b.mask.png"))).toEqual({ width: 160, height: 90 });
+    expect(await pngFormat(path.join(folder, "b.mask.png"))).toEqual([16, 0]);
+    for (const file of ["a.raw.png", "a.mask.png", "b.raw.prompt.md"]) expect(await Bun.file(path.join(folder, file)).exists()).toBe(false);
+    const jobs = await readJobs(path.join(dir, "jobs.jsonl"));
+    expect(jobs.map((j) => [j.output, j.size])).toEqual([
+      ["art/S2/a.png", { width: 160, height: 90 }],
+      ["art/S2/b.raw.png", { width: 159, height: 90 }],
+    ]);
+  }, 30_000);
+
+  test("a skipped variant is pasted again only when its final frame is missing", async () => {
+    const dir = await project("art-repaste");
+    const folder = path.join(dir, "art", "S1");
+    await run(dir, fakeBackend().backend, { only: "S1" });
+    const ledger = await Bun.file(path.join(dir, "jobs.jsonl")).text();
+    await rm(path.join(folder, "b.png"));
+    await Bun.write(path.join(folder, "c.png"), "edited by hand");
+
+    // A dry run pastes nothing.
+    await run(dir, fakeBackend().backend, { only: "S1", dry: true });
+    expect(await Bun.file(path.join(folder, "b.png")).exists()).toBe(false);
+
+    const fake = fakeBackend();
+    const drawings = await run(dir, fake.backend, { only: "S1" });
+    expect(statuses(drawings)).toEqual({ "S1/a": "skipped", "S1/b": "skipped", "S1/c": "skipped" });
+    expect(fake.calls).toEqual([]);
+    expect(drawings.map((d) => d.paste?.image ?? null)).toEqual([null, path.join(folder, "b.png"), null]);
+    expect(await pngSize(path.join(folder, "b.png"))).toEqual({ width: 16, height: 9 });
+    expect(await pngSize(path.join(folder, "b.mask.png"))).toEqual({ width: 16, height: 9 });
+    expect(await Bun.file(path.join(folder, "c.png")).text()).toBe("edited by hand");
+    expect(await Bun.file(path.join(dir, "jobs.jsonl")).text()).toBe(ledger);
+  }, 30_000);
 
   test("the ledger skips a drawing until its prompt, a ref or its output changes", async () => {
     const dir = await project("art-skip");
@@ -189,7 +236,7 @@ describe("art", () => {
     await Bun.write(path.join(dir, "bible", "refs", "bo.png"), grayPng(8, 8, 99));
     expect(statuses(await run(dir, fakeBackend().backend))).toEqual({ ...all("skipped"), "S2/a": "generated", "S2/b": "generated" });
 
-    await Bun.write(path.join(dir, "art", "S1", "c.png"), grayPng(16, 9, 200));
+    await Bun.write(path.join(dir, "art", "S1", "c.raw.png"), grayPng(16, 9, 200));
     expect(statuses(await run(dir, fakeBackend().backend))).toEqual({ ...all("skipped"), "S1/c": "generated" });
 
     expect(statuses(await run(dir, fakeBackend().backend, { force: true }))).toEqual(all("generated"));
@@ -197,7 +244,7 @@ describe("art", () => {
     // A redrawn base frame is a new first ref for its variants.
     expect(statuses(await run(dir, fakeBackend().backend, { force: true, only: "S1:a" }))).toEqual({ "S1/a": "generated" });
     expect(statuses(await run(dir, fakeBackend().backend))).toEqual({ ...all("skipped"), "S1/b": "generated", "S1/c": "generated" });
-  });
+  }, 30_000);
 
   test("a failed attempt is retried once; a failed base frame blocks its variants", async () => {
     const dir = await project("art-retry");
@@ -214,7 +261,7 @@ describe("art", () => {
     expect(statuses(await run(dir, second.backend, { only: "S2" }))).toEqual({ "S2/a": "failed", "S2/b": "blocked" });
     expect(second.calls.map((c) => c.label)).toEqual(["S2/a", "S2/a"]);
     expect(await Bun.file(path.join(dir, "art", "S2", "a.png")).exists()).toBe(false);
-  });
+  }, 30_000);
 
   test("--only picks shots and poses; a variant needs its base frame", async () => {
     const picked = selectPoses(shots.shots, "S1:b,S2,S1:c");
@@ -229,13 +276,13 @@ describe("art", () => {
     await expect(run(dir, fakeBackend().backend, { only: "S1:b" })).rejects.toThrow(`${path.join(dir, "art", "S1", "a.png")} is missing; add S1:a to --only`);
     await run(dir, fakeBackend().backend, { only: "S1:a" });
     expect(statuses(await run(dir, fakeBackend().backend, { only: "S1:b" }))).toEqual({ "S1/b": "generated" });
-  });
+  }, 30_000);
 
   test("--dry writes the prompts and generates nothing", async () => {
     const dir = await project("art-dry");
     const { code, json } = await runCli("art", "--project", dir, "--dry", "--only", "S1,S2");
     expect(code).toBe(0);
-    expect(json.summary).toMatchObject({ generated: 0, skipped: 0, planned: 5, attempts: 0 });
+    expect(json.summary).toMatchObject({ generated: 0, skipped: 0, planned: 5, pasted: 0, attempts: 0 });
     expect(json.next).toBe(`bun run pmv art --project ${dir} --only S1,S2`);
     expect(await Bun.file(path.join(dir, "art", "S2", "b.prompt.md")).text()).toBe(variantPrompt(bible, S2, S2.poses[1]!));
     expect(await Bun.file(path.join(dir, "art", "S2", "b.png")).exists()).toBe(false);
@@ -245,9 +292,6 @@ describe("art", () => {
     expect(bad.json.error).toBe('--jobs expects a positive integer, got "0"');
   });
 });
-
-/** Bit depth and colour type from a PNG header. */
-const pngFormat = async (file: string) => [...new Uint8Array(await Bun.file(file).slice(24, 26).arrayBuffer())];
 
 describe("paste", () => {
   test("rebuilds final frames and 16-bit masks from the raw drawings, scaling each to its base frame", async () => {
@@ -276,6 +320,26 @@ describe("paste", () => {
     const bad = await runCli("paste", "--project", dir, "--only", "S1:a");
     expect(bad.json.error).toBe("nothing to paste: the selected poses are all base frames, which are their own final frames");
   }, 30_000);
+
+  test("draws nothing, even where art would draw again", async () => {
+    const dir = await project("paste-no-draw");
+    const folder = path.join(dir, "art", "S1");
+    await run(dir, fakeBackend().backend, { only: "S1" });
+    const edited = structuredClone(shots);
+    edited.shots[0]!.poses[1]!.edit = "Ann jumps higher.";
+    await Bun.write(path.join(dir, "shots.json"), JSON.stringify(edited));
+    expect(statuses(await run(dir, fakeBackend().backend, { only: "S1", dry: true }))).toEqual({ "S1/a": "skipped", "S1/b": "planned", "S1/c": "skipped" });
+    const ledger = await Bun.file(path.join(dir, "jobs.jsonl")).text();
+    const raw = await sha256(path.join(folder, "b.raw.png"));
+    await Bun.write(path.join(folder, "b.png"), "stale");
+
+    const { code, json } = await runCli("paste", "--project", dir, "--only", "S1:b");
+    expect(code).toBe(0);
+    expect(json.summary).toMatchObject({ pasted: 1, poses: ["S1/b mask area 0"] });
+    expect(await pngSize(path.join(folder, "b.png"))).toEqual({ width: 16, height: 9 });
+    expect(await sha256(path.join(folder, "b.raw.png"))).toBe(raw);
+    expect(await Bun.file(path.join(dir, "jobs.jsonl")).text()).toBe(ledger);
+  }, 30_000);
 });
 
 describe("artcheck", () => {
@@ -288,7 +352,9 @@ describe("artcheck", () => {
     const before = await runCli("artcheck", "--project", dir, "--bpm", "165");
     expect(before.json.error).toBe("shot S1 has no drawing for pose a, b, c; run `pmv art` first");
 
-    await run(dir, fakeBackend().backend);
+    await mkdir(path.join(dir, "art", "S2"), { recursive: true });
+    await Bun.write(path.join(dir, "art", "S2", "a.png"), grayPng(16, 9, 40));
+    await Bun.write(path.join(dir, "art", "S2", "b.png"), grayPng(16, 9, 60));
     const { code, json } = await runCli("artcheck", "--project", dir, "--bpm", "165", "--only", "S2");
     expect(code).toBe(0);
     expect(Object.keys(json.outputs)).toEqual(["S2/sheet", "S2/flip", "S2/check"]);

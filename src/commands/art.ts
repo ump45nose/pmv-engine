@@ -31,21 +31,27 @@ export const art: Command = async (args) => {
 
   const count = (status: Status) => drawings.filter((d) => d.status === status).length;
   const generated = drawings.filter((d) => d.status === "generated");
+  const outputs: Record<string, string> = {};
+  for (const d of drawings) {
+    const key = `${d.shot}/${d.pose}`;
+    if (d.status === "generated") outputs[d.kind === "base" ? key : `${key}.raw`] = path.join(paths.root, d.output);
+    if (d.paste) Object.assign(outputs, { [key]: d.paste.image, [`${key}.mask`]: d.paste.mask });
+  }
+  if (generated.length > 0) outputs.jobs = paths.jobs;
   return {
-    outputs: {
-      ...Object.fromEntries(generated.map((d) => [`${d.shot}/${d.pose}`, path.join(paths.root, d.output)])),
-      ...(generated.length > 0 && { jobs: paths.jobs }),
-    },
+    outputs,
     summary: {
       generated: count("generated"),
       skipped: count("skipped"),
       planned: count("planned"),
+      pasted: drawings.filter((d) => d.paste).length,
       attempts: generated.reduce((n, d) => n + d.attempts, 0),
       drawings: drawings.map(
         (d) =>
           `${d.shot}/${d.pose} ${d.kind} ${d.status}` +
           (d.size ? ` ${d.size.width}x${d.size.height} in ${d.seconds} s` : "") +
-          (d.attempts > 1 ? ` after ${d.attempts} attempts` : ""),
+          (d.attempts > 1 ? ` after ${d.attempts} attempts` : "") +
+          (d.paste ? `, pasted with mask area ${d.paste.area}` : ""),
       ),
     },
     next: values.dry ? pmv("art", ...args.filter((a) => a !== "--dry")) : pmv("artcheck", "--project", dir, "--bpm", "<bpm>"),
